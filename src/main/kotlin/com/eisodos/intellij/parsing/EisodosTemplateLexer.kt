@@ -35,6 +35,8 @@ class EisodosTemplateLexer : LexerBase() {
     private var outerMultilineDepth: Int = 0
     // When entering a language tag from a callback value, remember where to return
     private var langReturnState: Int = STATE_HTML
+    // When entering a short callback from inside a full callback value, remember where to return
+    private var shortCbReturnState: Int = STATE_HTML
 
     companion object {
         const val STATE_HTML = 0
@@ -81,6 +83,16 @@ class EisodosTemplateLexer : LexerBase() {
             this.langReturnState = decodeStructureHash(initialState)
         }
 
+        // Recover short callback return state and full callback context
+        if (this.state in STATE_CB_SHORT..STATE_CB_SHORT_VALUE) {
+            this.shortCbReturnState = decodeStructureHash(initialState) and 0xF
+            if (this.shortCbReturnState in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) {
+                this.fullCbStructure = "FUNC"
+                this.multilineDepth = decodeMultilineDepth(initialState).coerceAtLeast(2)
+                this.outerMultilineDepth = decodeOuterMultilineDepth(initialState)
+            }
+        }
+
         // Recover structure name and multiline depth from state if in full callback
         if (this.state in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) {
             val hash = decodeStructureHash(initialState)
@@ -96,6 +108,12 @@ class EisodosTemplateLexer : LexerBase() {
         if (state in STATE_LANG..STATE_LANG_PARAMS) {
             // For lang states, encode return state in bits 8-11
             return encodeState(state, langReturnState, 0, 0)
+        }
+        if (state in STATE_CB_SHORT..STATE_CB_SHORT_VALUE) {
+            // For short callback states, encode return state and preserved full callback context
+            return encodeState(state, shortCbReturnState,
+                if (shortCbReturnState in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) multilineDepth else 0,
+                if (shortCbReturnState in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) outerMultilineDepth else 0)
         }
         val hash = if (state in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) {
             fullCbStructure.hashCode() and 0xFFFF
@@ -296,7 +314,8 @@ class EisodosTemplateLexer : LexerBase() {
         // Check for closing %]
         if (c == '%' && peek(1) == ']') {
             emit(EisodosTemplateTokenTypes.CB_SHORT_CLOSE, 2)
-            state = STATE_HTML
+            state = shortCbReturnState
+            shortCbReturnState = STATE_HTML
             return
         }
 
@@ -373,6 +392,14 @@ class EisodosTemplateLexer : LexerBase() {
         } else {
             tokenEnd = position
             tokenType = EisodosTemplateTokenTypes.CB_VALUE
+        }
+        // If stopped at an inline construct ($, [:), stay in value state
+        if (end < bufferEnd) {
+            val ch = charAt(end)
+            if (ch == '$' || ch == '[') {
+                state = STATE_CB_SHORT_VALUE
+                return
+            }
         }
         state = STATE_CB_SHORT
     }
@@ -482,13 +509,19 @@ class EisodosTemplateLexer : LexerBase() {
             return
         }
 
+        // Check for [% short callback inside value
+        if (charAt(position) == '[' && peek(1) == '%') {
+            lexShortCbInCallback(STATE_CB_FULL_VALUE)
+            return
+        }
+
         // Check for ## comment inside value
         if (charAt(position) == '#' && peek(1) == '#') {
             lexCommentInCallback(STATE_CB_FULL)
             return
         }
 
-        // Read value until end of line or close tag or $param or [: or ##
+        // Read value until end of line or close tag or $param or [: or [% or ##
         val closeTag = "%${fullCbStructure}%>"
         var end = position
         while (end < bufferEnd) {
@@ -496,7 +529,7 @@ class EisodosTemplateLexer : LexerBase() {
             if (ch == '\n' || ch == '\r') break
             if (ch == '%' && matchesAt(end, closeTag)) break
             if (ch == '$' && end + 1 < bufferEnd && isWordChar(charAt(end + 1))) break
-            if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == ':') break
+            if (ch == '[' && end + 1 < bufferEnd && (charAt(end + 1) == ':' || charAt(end + 1) == '%')) break
             if (ch == '#' && end + 1 < bufferEnd && charAt(end + 1) == '#') break
             end++
         }
@@ -504,6 +537,15 @@ class EisodosTemplateLexer : LexerBase() {
             tokenEnd = end
             position = end
             tokenType = EisodosTemplateTokenTypes.CB_FULL_VALUE
+        }
+        // If stopped at an inline construct ($, [:, [%, ##), stay in value state
+        // so the next advance() handles it; otherwise return to full cb key scanning
+        if (end < bufferEnd) {
+            val ch = charAt(end)
+            if (ch == '$' || ch == '[' || ch == '#') {
+                state = STATE_CB_FULL_VALUE
+                return
+            }
         }
         state = STATE_CB_FULL
     }
@@ -530,6 +572,12 @@ class EisodosTemplateLexer : LexerBase() {
         // Check for [: language tag at current position
         if (charAt(position) == '[' && peek(1) == ':') {
             lexLangTagInCallback(STATE_CB_FULL_MULTILINE)
+            return
+        }
+
+        // Check for [% short callback at current position
+        if (charAt(position) == '[' && peek(1) == '%') {
+            lexShortCbInCallback(STATE_CB_FULL_MULTILINE)
             return
         }
 
@@ -563,6 +611,9 @@ class EisodosTemplateLexer : LexerBase() {
 
             // Check for [: language tag
             if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == ':') break
+
+            // Check for [% short callback
+            if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == '%') break
 
             // Check for ## comment
             if (ch == '#' && end + 1 < bufferEnd && charAt(end + 1) == '#') break
@@ -747,6 +798,12 @@ class EisodosTemplateLexer : LexerBase() {
         langReturnState = returnState
         emit(EisodosTemplateTokenTypes.LANG_OPEN, 2)
         state = STATE_LANG
+    }
+
+    private fun lexShortCbInCallback(returnState: Int) {
+        shortCbReturnState = returnState
+        emit(EisodosTemplateTokenTypes.CB_SHORT_OPEN, 2)
+        state = STATE_CB_SHORT
     }
 
     private fun lexCommentInCallback(returnState: Int) {
