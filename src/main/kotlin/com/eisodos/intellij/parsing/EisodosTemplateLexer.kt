@@ -33,6 +33,8 @@ class EisodosTemplateLexer : LexerBase() {
     private var multilineDepth: Int = 2
     // For nested callbacks: the multiline depth of the enclosing multiline value (0 = not nested)
     private var outerMultilineDepth: Int = 0
+    // When entering a language tag from a callback value, remember where to return
+    private var langReturnState: Int = STATE_HTML
 
     companion object {
         const val STATE_HTML = 0
@@ -74,6 +76,11 @@ class EisodosTemplateLexer : LexerBase() {
         this.position = startOffset
         this.state = decodeBaseState(initialState)
 
+        // Recover lang return state if in language tag state
+        if (this.state in STATE_LANG..STATE_LANG_PARAMS) {
+            this.langReturnState = decodeStructureHash(initialState)
+        }
+
         // Recover structure name and multiline depth from state if in full callback
         if (this.state in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) {
             val hash = decodeStructureHash(initialState)
@@ -86,6 +93,10 @@ class EisodosTemplateLexer : LexerBase() {
     }
 
     override fun getState(): Int {
+        if (state in STATE_LANG..STATE_LANG_PARAMS) {
+            // For lang states, encode return state in bits 8-11
+            return encodeState(state, langReturnState, 0, 0)
+        }
         val hash = if (state in STATE_CB_FULL..STATE_CB_FULL_MULTILINE) {
             fullCbStructure.hashCode() and 0xFFFF
         } else 0
@@ -148,6 +159,7 @@ class EisodosTemplateLexer : LexerBase() {
 
         // Check for [: language tag
         if (c == '[' && peek(1) == ':') {
+            langReturnState = STATE_HTML
             emit(EisodosTemplateTokenTypes.LANG_OPEN, 2)
             state = STATE_LANG
             return
@@ -333,11 +345,25 @@ class EisodosTemplateLexer : LexerBase() {
             return
         }
 
-        // Read value (up to ; or %])
+        // Check for $param inside value
+        if (c == '$' && position + 1 < bufferEnd && isWordChar(charAt(position + 1))) {
+            lexParamRefInCallback(STATE_CB_SHORT_VALUE)
+            return
+        }
+
+        // Check for [: language tag inside value
+        if (c == '[' && peek(1) == ':') {
+            lexLangTagInCallback(STATE_CB_SHORT_VALUE)
+            return
+        }
+
+        // Read value (up to ; or %] or $param or [:)
         var end = position
         while (end < bufferEnd) {
             val ch = charAt(end)
             if (ch == ';' || (ch == '%' && end + 1 < bufferEnd && charAt(end + 1) == ']')) break
+            if (ch == '$' && end + 1 < bufferEnd && isWordChar(charAt(end + 1))) break
+            if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == ':') break
             end++
         }
         if (end > position) {
@@ -444,13 +470,34 @@ class EisodosTemplateLexer : LexerBase() {
     }
 
     private fun lexFullCbValue() {
-        // Read value until end of line or close tag
+        // Check for $param inside value
+        if (charAt(position) == '$' && position + 1 < bufferEnd && isWordChar(charAt(position + 1))) {
+            lexParamRefInCallback(STATE_CB_FULL_VALUE)
+            return
+        }
+
+        // Check for [: language tag inside value
+        if (charAt(position) == '[' && peek(1) == ':') {
+            lexLangTagInCallback(STATE_CB_FULL_VALUE)
+            return
+        }
+
+        // Check for ## comment inside value
+        if (charAt(position) == '#' && peek(1) == '#') {
+            lexCommentInCallback(STATE_CB_FULL)
+            return
+        }
+
+        // Read value until end of line or close tag or $param or [: or ##
         val closeTag = "%${fullCbStructure}%>"
         var end = position
         while (end < bufferEnd) {
             val ch = charAt(end)
             if (ch == '\n' || ch == '\r') break
             if (ch == '%' && matchesAt(end, closeTag)) break
+            if (ch == '$' && end + 1 < bufferEnd && isWordChar(charAt(end + 1))) break
+            if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == ':') break
+            if (ch == '#' && end + 1 < bufferEnd && charAt(end + 1) == '#') break
             end++
         }
         if (end > position) {
@@ -474,70 +521,68 @@ class EisodosTemplateLexer : LexerBase() {
             return
         }
 
+        // Check for $param at current position
+        if (charAt(position) == '$' && position + 1 < bufferEnd && isWordChar(charAt(position + 1))) {
+            lexParamRefInCallback(STATE_CB_FULL_MULTILINE)
+            return
+        }
+
+        // Check for [: language tag at current position
+        if (charAt(position) == '[' && peek(1) == ':') {
+            lexLangTagInCallback(STATE_CB_FULL_MULTILINE)
+            return
+        }
+
+        // Check for ## comment at current position
+        if (charAt(position) == '#' && peek(1) == '#') {
+            lexCommentInCallback(STATE_CB_FULL_MULTILINE)
+            return
+        }
+
         // Inside multiline value, scan for close delimiter.
         // The close delimiter is exactly multilineDepth '<' chars (e.g., << for >>=, <<< for >>>=).
         val closePattern = "<".repeat(multilineDepth)
-        var end = position
 
-        // Skip leading newline
-        if (end < bufferEnd && (charAt(end) == '\n' || charAt(end) == '\r')) {
-            if (charAt(end) == '\r' && end + 1 < bufferEnd && charAt(end + 1) == '\n') end++
+        // Check for close delimiter at current position (at line start)
+        if (isAtLineStart() && isMultilineCloseAt(position, closePattern)) {
+            var end = position
+            while (end < bufferEnd && charAt(end) != '\n' && charAt(end) != '\r') end++
+            if (end < bufferEnd) end++ // include newline
+            emit(EisodosTemplateTokenTypes.CB_MULTILINE_CLOSE, end - position)
+            state = STATE_CB_FULL
+            return
+        }
+
+        // Scan content character-by-character until close delimiter, nested callback, $param, [:, or ##
+        var end = position
+        while (end < bufferEnd) {
+            val ch = charAt(end)
+
+            // Check for $param
+            if (ch == '$' && end + 1 < bufferEnd && isWordChar(charAt(end + 1))) break
+
+            // Check for [: language tag
+            if (ch == '[' && end + 1 < bufferEnd && charAt(end + 1) == ':') break
+
+            // Check for ## comment
+            if (ch == '#' && end + 1 < bufferEnd && charAt(end + 1) == '#') break
+
+            // Check for nested callback open
+            if (ch == '<' && end + 1 < bufferEnd && charAt(end + 1) == '%') break
+
+            // At line start, check for close delimiter
+            if (isAtLineStart(end) && isMultilineCloseAt(end, closePattern)) break
+
             end++
         }
 
-        // Scan lines for close delimiter or nested callback open
-        while (end < bufferEnd) {
-            // Check if this line is the multiline close (exactly N '<' chars, not more)
-            val lineStart = end
-            var lineEnd = end
-            while (lineEnd < bufferEnd && charAt(lineEnd) != '\n' && charAt(lineEnd) != '\r') lineEnd++
-            val line = buffer.subSequence(lineStart, lineEnd).toString().trim()
-
-            if (line.startsWith(closePattern) && (line.length == closePattern.length || line[closePattern.length] != '<')) {
-                // Found close delimiter with exact depth match
-                if (lineStart > position) {
-                    // Emit content before the close
-                    tokenEnd = lineStart
-                    position = lineStart
-                    tokenType = EisodosTemplateTokenTypes.CB_MULTILINE_CONTENT
-                    return
-                }
-                // Emit the close delimiter line
-                if (lineEnd < bufferEnd) lineEnd++ // include newline
-                emit(EisodosTemplateTokenTypes.CB_MULTILINE_CLOSE, lineEnd - position)
-                state = STATE_CB_FULL
-                return
-            }
-
-            // Check for nested callback open at line start
-            if (charAt(lineStart) == '<' && lineStart + 1 < bufferEnd && charAt(lineStart + 1) == '%') {
-                if (lineStart > position) {
-                    // Emit content before the nested callback
-                    tokenEnd = lineStart
-                    position = lineStart
-                    tokenType = EisodosTemplateTokenTypes.CB_MULTILINE_CONTENT
-                    return
-                }
-                // Enter nested callback
-                outerMultilineDepth = multilineDepth
-                lexFullCbOpen()
-                return
-            }
-
-            end = lineEnd
-            if (end < bufferEnd) {
-                if (charAt(end) == '\r' && end + 1 < bufferEnd && charAt(end + 1) == '\n') end++
-                end++
-            }
-        }
-
-        // No close found - emit rest as multiline content
+        // Emit content before the break point
         if (end > position) {
             tokenEnd = end
             position = end
             tokenType = EisodosTemplateTokenTypes.CB_MULTILINE_CONTENT
         }
-        // Stay in multiline state (unclosed)
+        // Stay in multiline state
     }
 
     private fun skipWhitespaceInFullCb() {
@@ -573,7 +618,7 @@ class EisodosTemplateLexer : LexerBase() {
         // Check for closing :]
         if (c == ':' && peek(1) == ']') {
             emit(EisodosTemplateTokenTypes.LANG_CLOSE, 2)
-            state = STATE_HTML
+            state = langReturnState
             return
         }
 
@@ -597,7 +642,7 @@ class EisodosTemplateLexer : LexerBase() {
 
     private fun lexLangAfterId() {
         if (position >= bufferEnd) {
-            state = STATE_HTML
+            state = langReturnState
             tokenType = null
             return
         }
@@ -611,7 +656,7 @@ class EisodosTemplateLexer : LexerBase() {
         if (c == ':') {
             if (peek(1) == ']') {
                 emit(EisodosTemplateTokenTypes.LANG_CLOSE, 2)
-                state = STATE_HTML
+                state = langReturnState
                 return
             }
             emit(EisodosTemplateTokenTypes.LANG_COLON, 1)
@@ -625,7 +670,7 @@ class EisodosTemplateLexer : LexerBase() {
 
     private fun lexLangDefault() {
         if (position >= bufferEnd) {
-            state = STATE_HTML
+            state = langReturnState
             tokenType = null
             return
         }
@@ -634,7 +679,7 @@ class EisodosTemplateLexer : LexerBase() {
         if (c == ':') {
             if (peek(1) == ']') {
                 emit(EisodosTemplateTokenTypes.LANG_CLOSE, 2)
-                state = STATE_HTML
+                state = langReturnState
                 return
             }
             emit(EisodosTemplateTokenTypes.LANG_COLON, 1)
@@ -661,7 +706,7 @@ class EisodosTemplateLexer : LexerBase() {
 
     private fun lexLangParams() {
         if (position >= bufferEnd) {
-            state = STATE_HTML
+            state = langReturnState
             tokenType = null
             return
         }
@@ -669,7 +714,7 @@ class EisodosTemplateLexer : LexerBase() {
         val c = charAt(position)
         if (c == ':' && peek(1) == ']') {
             emit(EisodosTemplateTokenTypes.LANG_CLOSE, 2)
-            state = STATE_HTML
+            state = langReturnState
             return
         }
 
@@ -685,6 +730,45 @@ class EisodosTemplateLexer : LexerBase() {
             tokenType = EisodosTemplateTokenTypes.LANG_PARAM
         }
         // Stay in params state for the closing :]
+    }
+
+    // ---- Shared helpers for $param and [:lang:] inside callback values ----
+
+    private fun lexParamRefInCallback(returnState: Int) {
+        var end = position + 1 // skip $
+        while (end < bufferEnd && isWordChar(charAt(end))) end++
+        tokenEnd = end
+        position = end
+        tokenType = EisodosTemplateTokenTypes.PARAM_REF
+        state = returnState
+    }
+
+    private fun lexLangTagInCallback(returnState: Int) {
+        langReturnState = returnState
+        emit(EisodosTemplateTokenTypes.LANG_OPEN, 2)
+        state = STATE_LANG
+    }
+
+    private fun lexCommentInCallback(returnState: Int) {
+        var end = position + 2
+        while (end < bufferEnd && charAt(end) != '\n') end++
+        // Don't consume the newline — let the caller's state handle it
+        tokenEnd = end
+        position = end
+        tokenType = EisodosTemplateTokenTypes.COMMENT
+        state = returnState
+    }
+
+    private fun isMultilineCloseAt(pos: Int, closePattern: String): Boolean {
+        var p = pos
+        while (p < bufferEnd && (charAt(p) == ' ' || charAt(p) == '\t')) p++
+        if (p + closePattern.length > bufferEnd) return false
+        for (i in closePattern.indices) {
+            if (charAt(p + i) != closePattern[i]) return false
+        }
+        val afterPattern = p + closePattern.length
+        if (afterPattern < bufferEnd && charAt(afterPattern) == '<') return false
+        return true
     }
 
     // ---- Helper methods ----

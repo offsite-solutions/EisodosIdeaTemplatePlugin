@@ -6,7 +6,8 @@
 
 # Gradle
 .gradle/
-build/
+build/*
+!build/distributions/
 
 # macOS
 .DS_Store
