@@ -1,0 +1,82 @@
+<idea-plugin>
+    <id>com.eisodos.intellij.template</id>
+    <name>Eisodos Template Support</name>
+    <version>1.0.0</version>
+    <vendor email="info@offsite-solutions.com" url="https://offsite-solutions.com">Offsite Solutions Kft.</vendor>
+    <category>Custom Languages</category>
+
+    <description><![CDATA[
+        Provides language support for Eisodos framework template files (.template).
+
+        <h3>Features:</h3>
+        <ul>
+            <li>Syntax highlighting for all Eisodos template constructs</li>
+            <li>Parameter references ($paramName, $param:='value', $param~='default')</li>
+            <li>Short callback functions ([%funcjob=eqs;param=test;value=Y%])</li>
+            <li>Full callback functions (&lt;%FUNC%...%FUNC%&gt;)</li>
+            <li>Language translation tags ([:LANG_ID,default:])</li>
+            <li>Comment support (## line comments)</li>
+            <li>Mixed HTML + template language editing</li>
+            <li>Brace matching for callback and language tag delimiters</li>
+            <li>Configurable color scheme</li>
+        </ul>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <h3>1.0.0</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Syntax highlighting for parameters, callbacks, language tags, and comments</li>
+            <li>Mixed HTML + template language editing with full HTML coloring</li>
+            <li>Brace matching and commenting support</li>
+            <li>Configurable color scheme</li>
+        </ul>
+    ]]></change-notes>
+
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.xml</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- File type -->
+        <fileType
+                name="Eisodos Template"
+                implementationClass="com.eisodos.intellij.EisodosTemplateFileType"
+                fieldName="INSTANCE"
+                language="EisodosTemplate"
+                extensions="template"/>
+
+        <!-- Language -->
+        <lang.parserDefinition
+                language="EisodosTemplate"
+                implementationClass="com.eisodos.intellij.parsing.EisodosTemplateParserDefinition"/>
+
+        <!-- File view provider for HTML mixed language -->
+        <lang.fileViewProviderFactory
+                language="EisodosTemplate"
+                implementationClass="com.eisodos.intellij.file.EisodosTemplateFileViewProviderFactory"/>
+
+        <!-- Syntax highlighting -->
+        <lang.syntaxHighlighterFactory
+                language="EisodosTemplate"
+                implementationClass="com.eisodos.intellij.editor.EisodosTemplateSyntaxHighlighterFactory"/>
+
+        <!-- Brace matching -->
+        <lang.braceMatcher
+                language="EisodosTemplate"
+                implementationClass="com.eisodos.intellij.editor.EisodosTemplateBraceMatcher"/>
+
+        <!-- Commenting -->
+        <lang.commenter
+                language="EisodosTemplate"
+                implementationClass="com.eisodos.intellij.editor.EisodosTemplateCommenter"/>
+
+        <!-- Layered editor highlighter for HTML + template -->
+        <editorHighlighterProvider
+                filetype="Eisodos Template"
+                implementationClass="com.eisodos.intellij.editor.EisodosTemplateHighlighterProvider"/>
+
+        <!-- Color settings page -->
+        <colorSettingsPage
+                implementation="com.eisodos.intellij.editor.EisodosTemplateColorSettingsPage"/>
+    </extensions>
+</idea-plugin>
