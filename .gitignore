@@ -19,3 +19,9 @@ build/*
 
 # Local properties
 local.properties
+
+# IntelliJ Platform Gradle Plugin cache
+.intellijPlatform/
+
+# codebase-memory-mcp local cache
+.codebase-memory/

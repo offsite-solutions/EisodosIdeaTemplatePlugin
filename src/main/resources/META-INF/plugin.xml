@@ -23,6 +23,13 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>1.1.0</h3>
+        <ul>
+            <li>Compatibility with IntelliJ IDEA / PhpStorm 2026.2 (build 262.*)</li>
+            <li>Migrated the build to the IntelliJ Platform Gradle Plugin 2.x and Gradle 9</li>
+            <li>Minimum supported IDE raised to 2024.2 (build 242) &mdash; the platform now requires Java 21</li>
+        </ul>
+
         <h3>1.0.0</h3>
         <ul>
             <li>Initial release</li>

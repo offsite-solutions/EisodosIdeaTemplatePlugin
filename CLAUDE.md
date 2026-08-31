@@ -10,15 +10,11 @@ PhpStorm/IntelliJ plugin providing language support for Eisodos framework `.temp
 
 ## Prerequisites
 
-- **JDK 17** — required by IntelliJ Platform 2024.1. Installed via brew:
-  ```bash
-  brew install openjdk@17
-  ```
-- **JDK 21** — used to run Gradle. Installed via brew:
+- **JDK 21** — used both to run Gradle and as the Java/Kotlin compilation toolchain. Installed via brew:
   ```bash
   brew install openjdk@21
   ```
-- The JDK 17 path is configured in `gradle.properties` under `org.gradle.java.installations.paths`. Update this if your JDK 17 is installed elsewhere.
+- The JDK 21 path is configured in `gradle.properties` under `org.gradle.java.installations.paths`. Update this if your JDK 21 is installed elsewhere.
 
 ## Building
 
@@ -29,13 +25,27 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 
 The plugin artifact is produced at:
 ```
-build/distributions/Eisodos Template Support-1.0.0.zip
+build/distributions/eisodos-template-support-1.1.0.zip
 ```
+
+### Verifying IDE Compatibility
+
+`verifyPlugin` runs the JetBrains Plugin Verifier against the PhpStorm versions listed in
+`pluginVerifierIdeVersions` (`gradle.properties`) — currently the lower and upper bound of the
+declared `since`/`until` range:
+
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+./gradlew verifyPlugin
+```
+
+This is the check that proves compatibility with IDE versions newer than the one we compile
+against. Run it whenever `pluginUntilBuild` is raised.
 
 ## Installing in PhpStorm
 
 1. PhpStorm → Settings → Plugins → gear icon → "Install Plugin from Disk..."
-2. Select `build/distributions/Eisodos Template Support-1.0.0.zip`
+2. Select `build/distributions/eisodos-template-support-1.1.0.zip`
 3. Restart PhpStorm
 
 ## Running a Development Instance
@@ -47,7 +57,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 ./gradlew runIde
 ```
 
-This downloads and runs IntelliJ Community Edition with the plugin pre-installed.
+This downloads and runs PhpStorm with the plugin pre-installed.
 
 ## Architecture
 
@@ -124,25 +134,41 @@ Full callback blocks support:
 
 ## Build Configuration
 
-- **Gradle plugin:** `org.jetbrains.intellij` v1.17.4 (legacy 1.x API)
-- **Kotlin:** 1.9.25
-- **Target platform:** IntelliJ Community (IC) 2024.1.7
-- **Compatibility range:** 241–252.* (IntelliJ 2024.1 through 2025.2)
-- **JVM target:** 17
+- **Gradle:** 9.7.1 (required by the IntelliJ Platform Gradle Plugin 2.x)
+- **Gradle plugin:** `org.jetbrains.intellij.platform` v2.18.1
+- **Kotlin:** 2.4.10
+- **Target platform:** PhpStorm (PS) 2026.1.5
+- **Compatibility range:** 242–262.* (2024.2 through 2026.2)
+- **JVM target:** 21
+
+### Why PhpStorm and why 2026.1.5?
+
+- The IntelliJ IDEA Community (`IC`) distribution is **no longer published after 2025.2**, so the
+  old `platformType=IC` cannot resolve modern versions. PhpStorm (`PS`) is the target IDE anyway.
+- We compile against **2026.1.5** rather than 2026.2.x because 2026.1 is the last platform line
+  that still targets **Java 21**. PhpStorm 2026.2 requires **Java 25**, and compiling against it
+  would emit Java 25 bytecode, which older IDEs (running JBR 21) cannot load — that would force
+  `pluginSinceBuild=262`.
+- Compatibility with 2026.2.x is therefore established by the **Plugin Verifier** (`verifyPlugin`)
+  instead of by compiling against it. The plugin only uses long-stable core platform APIs
+  (`LexerBase`, `ParserDefinition`, `MultiplePsiFilesPerDocumentFileViewProvider`,
+  `TemplateDataElementType`, `LayeredLexerEditorHighlighter`), so this holds well.
 
 ## Version Bumping
 
 Update version in `gradle.properties`:
 ```properties
-pluginVersion=1.0.0
+pluginVersion=1.1.0
 ```
 
-To support newer IntelliJ versions, update:
+To support newer IDE versions, raise the upper bound and re-run the verifier:
 ```properties
-platformVersion=2024.1.7
-pluginSinceBuild=241
-pluginUntilBuild=252.*
+pluginUntilBuild=262.*
+pluginVerifierIdeVersions=2024.2,2026.2.1
 ```
+
+Only raise `platformVersion` / `pluginSinceBuild` when you actually need newer APIs — note that
+moving to a 2026.2+ platform also forces the JVM target to 25 and `pluginSinceBuild=262`.
 
 ## Code Conventions
 

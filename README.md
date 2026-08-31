@@ -30,8 +30,8 @@ IntelliJ/PhpStorm plugin providing language support for [Eisodos](https://github
 
 ## Requirements
 
-- IntelliJ IDEA / PhpStorm **2024.1 – 2026.1** (build 241–261.*)
-- JDK 17+ (for running the IDE)
+- IntelliJ IDEA / PhpStorm **2024.2 – 2026.2** (build 242–262.*)
+- JDK 21+ (bundled with the IDE)
 
 ## Installation
 
@@ -46,12 +46,11 @@ IntelliJ/PhpStorm plugin providing language support for [Eisodos](https://github
 
 ### Prerequisites
 
-- JDK 17 — required by IntelliJ Platform 2024.1
-- JDK 21 — used to run Gradle
+- JDK 21 — used both to run Gradle and as the compilation toolchain
 
 On macOS:
 ```bash
-brew install openjdk@17 openjdk@21
+brew install openjdk@21
 ```
 
 ### Build
@@ -61,11 +60,21 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 ./gradlew build
 ```
 
-The plugin ZIP is produced at `build/distributions/Eisodos Template Support-1.0.0.zip`.
+The plugin ZIP is produced at `build/distributions/eisodos-template-support-1.1.0.zip`.
+
+### Verify IDE Compatibility
+
+Runs the JetBrains Plugin Verifier against the lower and upper bound of the declared
+compatibility range (configured via `pluginVerifierIdeVersions` in `gradle.properties`):
+
+```bash
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+./gradlew verifyPlugin
+```
 
 ### Run Development Instance
 
-Launch a sandboxed IDE with the plugin pre-installed:
+Launch a sandboxed PhpStorm with the plugin pre-installed:
 
 ```bash
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
