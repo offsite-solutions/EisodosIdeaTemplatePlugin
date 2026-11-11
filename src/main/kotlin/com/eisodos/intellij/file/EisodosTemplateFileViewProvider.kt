@@ -4,7 +4,7 @@ import com.eisodos.intellij.EisodosTemplateLanguage
 import com.eisodos.intellij.parsing.EisodosTemplateTokenTypes
 import com.intellij.lang.Language
 import com.intellij.lang.LanguageParserDefinitions
-import com.intellij.lang.html.HTMLLanguage
+import com.intellij.openapi.fileTypes.PlainTextLanguage
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.MultiplePsiFilesPerDocumentFileViewProvider
 import com.intellij.psi.PsiFile
@@ -45,7 +45,8 @@ class EisodosTemplateFileViewProvider(
                 return substituteLang
             }
         }
-        return HTMLLanguage.INSTANCE
+        // Looked up by ID: HTMLLanguage moved into an XML plugin content module in 2026.3.
+        return Language.findLanguageByID("HTML") ?: PlainTextLanguage.INSTANCE
     }
 
     override fun createFile(lang: Language): PsiFile? {

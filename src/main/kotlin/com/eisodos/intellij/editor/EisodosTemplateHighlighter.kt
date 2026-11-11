@@ -1,7 +1,7 @@
 package com.eisodos.intellij.editor
 
 import com.eisodos.intellij.parsing.EisodosTemplateTokenTypes
-import com.intellij.ide.highlighter.HtmlFileType
+import com.intellij.lang.Language
 import com.intellij.openapi.editor.colors.EditorColorsScheme
 import com.intellij.openapi.editor.ex.util.LayerDescriptor
 import com.intellij.openapi.editor.ex.util.LayeredLexerEditorHighlighter
@@ -22,7 +22,8 @@ class EisodosTemplateHighlighter(
             FileTypes.PLAIN_TEXT
         } else {
             val lang = TemplateDataLanguageMappings.getInstance(project).getMapping(virtualFile)
-            lang?.associatedFileType ?: HtmlFileType.INSTANCE
+            // Looked up by ID: HtmlFileType moved into an XML plugin content module in 2026.3.
+            (lang ?: Language.findLanguageByID("HTML"))?.associatedFileType ?: FileTypes.PLAIN_TEXT
         }
 
         val outerHighlighter = SyntaxHighlighterFactory.getSyntaxHighlighter(outerFileType, project, virtualFile)

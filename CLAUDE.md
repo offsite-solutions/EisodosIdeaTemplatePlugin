@@ -138,7 +138,7 @@ Full callback blocks support:
 - **Gradle plugin:** `org.jetbrains.intellij.platform` v2.18.1
 - **Kotlin:** 2.4.10
 - **Target platform:** PhpStorm (PS) 2026.1.5
-- **Compatibility range:** 242–262.* (2024.2 through 2026.2)
+- **Compatibility range:** 242–263.* (2024.2 through 2026.3)
 - **JVM target:** 21
 
 ### Why PhpStorm and why 2026.1.5?
@@ -149,7 +149,7 @@ Full callback blocks support:
   that still targets **Java 21**. PhpStorm 2026.2 requires **Java 25**, and compiling against it
   would emit Java 25 bytecode, which older IDEs (running JBR 21) cannot load — that would force
   `pluginSinceBuild=262`.
-- Compatibility with 2026.2.x is therefore established by the **Plugin Verifier** (`verifyPlugin`)
+- Compatibility with 2026.2.x and 2026.3.x is therefore established by the **Plugin Verifier** (`verifyPlugin`)
   instead of by compiling against it. The plugin only uses long-stable core platform APIs
   (`LexerBase`, `ParserDefinition`, `MultiplePsiFilesPerDocumentFileViewProvider`,
   `TemplateDataElementType`, `LayeredLexerEditorHighlighter`), so this holds well.
@@ -163,8 +163,8 @@ pluginVersion=1.1.0
 
 To support newer IDE versions, raise the upper bound and re-run the verifier:
 ```properties
-pluginUntilBuild=262.*
-pluginVerifierIdeVersions=2024.2,2026.2.1
+pluginUntilBuild=263.*
+pluginVerifierIdeVersions=2024.2,2026.3
 ```
 
 Only raise `platformVersion` / `pluginSinceBuild` when you actually need newer APIs — note that
@@ -178,3 +178,4 @@ moving to a 2026.2+ platform also forces the JVM target to 25 and `pluginSinceBu
 - Composite element types use `EisodosTemplateCompositeElementType`
 - The lexer extends `LexerBase` (not JFlex) for easier maintenance
 - No external dependencies beyond the IntelliJ Platform SDK
+- Look up HTML by ID (`Language.findLanguageByID("HTML")`), never via `HTMLLanguage` or `HtmlFileType`: since 2026.3 these live in XML plugin content modules, and direct references fail the Plugin Verifier

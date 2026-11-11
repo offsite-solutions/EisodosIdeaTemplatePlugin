@@ -30,7 +30,7 @@ IntelliJ/PhpStorm plugin providing language support for [Eisodos](https://github
 
 ## Requirements
 
-- IntelliJ IDEA / PhpStorm **2024.2 – 2026.2** (build 242–262.*)
+- IntelliJ IDEA / PhpStorm **2024.2 – 2026.3** (build 242–263.*)
 - JDK 21+ (bundled with the IDE)
 
 ## Installation
