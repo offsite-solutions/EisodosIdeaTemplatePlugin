@@ -154,6 +154,17 @@ Full callback blocks support:
   (`LexerBase`, `ParserDefinition`, `MultiplePsiFilesPerDocumentFileViewProvider`,
   `TemplateDataElementType`, `LayeredLexerEditorHighlighter`), so this holds well.
 
+## Releasing
+
+The IDE checks for updates in a custom plugin repository: `updatePlugins.xml` in the repo root,
+served from `https://raw.githubusercontent.com/offsite-solutions/EisodosIdeaTemplatePlugin/main/updatePlugins.xml`.
+Its download URL points to the GitHub Release asset of the current version.
+
+1. Bump `pluginVersion` in `gradle.properties`
+2. `./gradlew buildPlugin updatePluginsXml`
+3. Commit and push (including `updatePlugins.xml`)
+4. `gh release create v<version> build/distributions/eisodos-template-support-<version>.zip`
+
 ## Version Bumping
 
 Update version in `gradle.properties`:

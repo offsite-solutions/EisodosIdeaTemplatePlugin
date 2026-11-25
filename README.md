@@ -35,6 +35,17 @@ IntelliJ/PhpStorm plugin providing language support for [Eisodos](https://github
 
 ## Installation
 
+### From the Custom Plugin Repository (recommended)
+
+The IDE then offers updates automatically.
+
+1. In PhpStorm/IntelliJ: **Settings → Plugins → ⚙ → Manage Plugin Repositories...**
+2. Add `https://raw.githubusercontent.com/offsite-solutions/EisodosIdeaTemplatePlugin/main/updatePlugins.xml`
+3. Search for **Eisodos Template Support** on the **Marketplace** tab and install it
+4. Restart the IDE
+
+If you installed the plugin from disk earlier, the IDE says it cannot identify where the plugin came from. Add the repository URL in that dialog, too.
+
 ### From Disk
 
 1. Download the latest release ZIP from the [Releases](../../releases) page

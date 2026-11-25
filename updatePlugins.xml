@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugins>
+  <plugin id="com.eisodos.intellij.template" url="https://github.com/offsite-solutions/EisodosIdeaTemplatePlugin/releases/download/v1.1.0/eisodos-template-support-1.1.0.zip" version="1.1.0">
+    <idea-version since-build="242" until-build="263.*"/>
+    <name>Eisodos Template Support</name>
+    <vendor>Offsite Solutions Kft.</vendor>
+  </plugin>
+</plugins>

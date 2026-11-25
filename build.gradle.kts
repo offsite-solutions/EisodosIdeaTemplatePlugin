@@ -70,4 +70,37 @@ tasks {
     wrapper {
         gradleVersion = "9.7.1"
     }
+
+    // Writes updatePlugins.xml, the custom plugin repository PhpStorm polls for updates.
+    // Its download URL points to the GitHub Release asset of the current version, so
+    // publish the release (tag v<pluginVersion>) together with the regenerated file.
+    register("updatePluginsXml") {
+        group = "intellij platform"
+        description = "Generates updatePlugins.xml for the custom plugin repository."
+
+        val pluginVersion = providers.gradleProperty("pluginVersion")
+        val sinceBuild = providers.gradleProperty("pluginSinceBuild")
+        val untilBuild = providers.gradleProperty("pluginUntilBuild")
+        val pluginName = providers.gradleProperty("pluginName")
+        val outputFile = layout.projectDirectory.file("updatePlugins.xml")
+        outputs.file(outputFile)
+
+        doLast {
+            val version = pluginVersion.get()
+            val url = "https://github.com/offsite-solutions/EisodosIdeaTemplatePlugin" +
+                "/releases/download/v$version/eisodos-template-support-$version.zip"
+            outputFile.asFile.writeText(
+                """
+                |<?xml version="1.0" encoding="UTF-8"?>
+                |<plugins>
+                |  <plugin id="com.eisodos.intellij.template" url="$url" version="$version">
+                |    <idea-version since-build="${sinceBuild.get()}" until-build="${untilBuild.get()}"/>
+                |    <name>${pluginName.get()}</name>
+                |    <vendor>Offsite Solutions Kft.</vendor>
+                |  </plugin>
+                |</plugins>
+                |""".trimMargin()
+            )
+        }
+    }
 }
