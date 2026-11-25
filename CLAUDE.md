@@ -160,10 +160,15 @@ The IDE checks for updates in a custom plugin repository: `updatePlugins.xml` in
 served from `https://raw.githubusercontent.com/offsite-solutions/EisodosIdeaTemplatePlugin/main/updatePlugins.xml`.
 Its download URL points to the GitHub Release asset of the current version.
 
-1. Bump `pluginVersion` in `gradle.properties`
+When the user asks for a new version or release, Claude runs every step below end to end
+without handing any of them back:
+
+1. Bump `pluginVersion` in `gradle.properties` (ask which version if the user did not say)
 2. `./gradlew buildPlugin updatePluginsXml`
 3. Commit and push (including `updatePlugins.xml`)
 4. `gh release create v<version> build/distributions/eisodos-template-support-<version>.zip`
+5. Verify that the raw `updatePlugins.xml` URL serves the new version and the release asset URL
+   answers 200, then report both to the user
 
 ## Version Bumping
 
